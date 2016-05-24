@@ -44,6 +44,14 @@ class PiolaTransformedDunePdelabWrapper
   static_assert(Dune::AlwaysFalse<PdelabSpaceImp>::value, "Untested for these dimensions!");
 };
 
+//new for Nedelec
+template< class PdelabSpaceImp, class EntityImp,
+          class DomainFieldImp, size_t domainDim,
+          class RangeFieldImp, size_t rangeDim, size_t rangeDimCols = 1 >
+class Edges05DunePdelabWrapper
+{
+  static_assert(Dune::AlwaysFalse< PdelabSpaceImp >::value, "Untested for these dimensions!");
+};
 
 namespace internal {
 
@@ -99,6 +107,30 @@ private:
                                                  rangeDim, 1>;
 };
 
+//new for nedelec
+/**  Traits for the class Edges05DunePdelabWrapper
+ *
+ * Edges05DunePdelabWrapper
+*/
+template< class PdelabSpaceImp, class EntityImp,
+          class DomainFieldImp, size_t domainDim,
+          class RangeFieldImp, size_t rangeDim >
+class Edges05DunePdelabWrapperTraits
+{
+  static_assert(domainDim == rangeDim, "Untested!");
+  static_assert(domainDim == 3, "Untested!");
+public:
+  typedef Edges05DunePdelabWrapper< PdelabSpaceImp, EntityImp, DomainFieldImp, domainDim, RangeFieldImp, rangeDim >
+      derived_type;
+private:
+  typedef PDELab::LocalFunctionSpace< PdelabSpaceImp, PDELab::TrialSpaceTag > PdelabLFSType;
+  typedef FiniteElementInterfaceSwitch< typename PdelabSpaceImp::Traits::FiniteElementType > FESwitchType;
+public:
+  typedef typename FESwitchType::Basis BackendType;
+  typedef EntityImp EntityType;
+private:
+  friend class Edges05DunePdelabWrapper< PdelabSpaceImp, EntityImp, DomainFieldImp, domainDim, RangeFieldImp, rangeDim, 1 >;
+};
 
 } // namespace internal
 
@@ -411,6 +443,120 @@ private:
 }; // class PiolaTransformedDunePdelabWrapper
 
 
+// New for Nedelec
+/** \brief Wrapper-class for the Hcurl-conforming transformation, e.g. for member functions of the Nedelec spaces
+ *
+ * \note As the curl is only defined in dimension 3, the domainDim and the rangeDim have to equal 3
+ *
+ * \tparam PdelabSpaceType Type of function space, has to be implemented in dune-pdelab/finiteelementmap
+ * \tparam EntityImp Type of Entity the transformation maps from
+ * \tparam DomainFieldImp Type of the domain field
+ * \tparam domainDim Dimension of the domain, has to be 3
+ * \tparam RangeFieldImp Type of the range field
+ * \tparam rangeDim Dimension of the range, has to be 3
+ */
+template< class PdelabSpaceType, class EntityImp,
+          class DomainFieldImp, size_t domainDim,
+          class RangeFieldImp, size_t rangeDim >
+class Edges05DunePdelabWrapper< PdelabSpaceType, EntityImp, DomainFieldImp, domainDim, RangeFieldImp, rangeDim, 1 >
+  : public BaseFunctionSetInterface< internal::Edges05DunePdelabWrapperTraits< PdelabSpaceType, EntityImp,
+                                                                       DomainFieldImp, domainDim,
+                                                                       RangeFieldImp, rangeDim >,
+                                     DomainFieldImp, domainDim, RangeFieldImp, rangeDim, 1 >
+{
+  typedef Edges05DunePdelabWrapper
+    < PdelabSpaceType, EntityImp, DomainFieldImp, domainDim, RangeFieldImp, rangeDim, 1 > ThisType;
+  typedef BaseFunctionSetInterface< internal::Edges05DunePdelabWrapperTraits< PdelabSpaceType, EntityImp,
+                                                                      DomainFieldImp, domainDim,
+                                                                      RangeFieldImp, rangeDim >,
+                                    DomainFieldImp, domainDim, RangeFieldImp, rangeDim, 1 >
+      BaseType;
+public:
+  typedef internal::Edges05DunePdelabWrapperTraits< PdelabSpaceType, EntityImp,
+                                            DomainFieldImp, domainDim,
+                                            RangeFieldImp, rangeDim >
+      Traits;
+  typedef typename Traits::BackendType   BackendType;
+  typedef typename Traits::EntityType    EntityType;
+private:
+  typedef typename Traits::PdelabLFSType PdelabLFSType;
+  typedef typename Traits::FESwitchType  FESwitchType;
+
+public:
+  using typename BaseType::DomainFieldType;
+  using typename BaseType::DomainType;
+  using typename BaseType::RangeType;
+  using typename BaseType::JacobianRangeType;
+  using BaseType::dimDomain;
+
+  Edges05DunePdelabWrapper(const PdelabSpaceType& space, const EntityType& ent)
+    : BaseType(ent)
+    , tmp_domain_(DomainFieldType(0))
+    , tmp_jacobian_transposed_(DomainFieldType(0))
+    , tmp_jacobian_inverse_transposed_(DomainFieldType(0))
+  {
+    PdelabLFSType* lfs_ptr = new PdelabLFSType(space);
+    lfs_ptr->bind(this->entity());
+    lfs_ = std::unique_ptr< PdelabLFSType >(lfs_ptr);
+    backend_ = std::unique_ptr< BackendType >(new BackendType(FESwitchType::basis(lfs_->finiteElement())));
+    tmp_ranges_ = std::vector< RangeType >(backend_->size(), RangeType(0));
+    tmp_jacobian_ranges_ = std::vector< JacobianRangeType >(backend_->size(), JacobianRangeType(0));
+  } // DunePdelabWrapper(...)
+
+  Edges05DunePdelabWrapper(ThisType&& source) = default;
+
+  Edges05DunePdelabWrapper(const ThisType& /*other*/) = delete;
+
+  ThisType& operator=(const ThisType& /*other*/) = delete;
+
+  const BackendType& backend() const
+  {
+    return *backend_;
+  }
+
+  virtual size_t size() const override final
+  {
+    return backend_->size();
+  }
+
+  virtual size_t order() const override final
+  {
+    return backend_->order();
+  }
+
+  virtual void evaluate(const DomainType& xx, std::vector< RangeType >& ret) const override final
+  {
+    assert(lfs_);
+    assert(backend_);
+    assert(ret.size() >= backend_->size());
+    backend_->evaluateFunction(xx, ret);
+    //evaluateFunction for edges05 already gives the value on the element and not in the reference configuration, so no mapping here
+  } // ... evaluate(...)
+
+  using BaseType::evaluate;
+
+  virtual void jacobian(const DomainType& xx, std::vector< JacobianRangeType >& ret) const override final
+  {
+    assert(lfs_);
+    assert(backend_);
+    assert(ret.size() >= backend_->size());
+    backend_->evaluateJacobian(xx, ret);
+    //again, evaluateJacobian for edge05 already gives the value on the local element and not on the reference element, so no mapping
+  } // ... jacobian(...)
+
+  using BaseType::jacobian;
+
+private:
+  mutable DomainType tmp_domain_;
+  mutable typename EntityType::Geometry::JacobianTransposed        tmp_jacobian_transposed_;
+  mutable typename EntityType::Geometry::JacobianInverseTransposed tmp_jacobian_inverse_transposed_;
+  std::unique_ptr< const PdelabLFSType > lfs_;
+  std::unique_ptr< const BackendType >   backend_;
+  mutable std::vector< RangeType >         tmp_ranges_;
+  mutable std::vector< JacobianRangeType > tmp_jacobian_ranges_;
+}; // class Edges05DunePdelabWrapper
+
+
 #else // HAVE_DUNE_PDELAB
 
 
@@ -425,6 +571,15 @@ class DunePdelabWrapper
 template <class PdelabSpaceImp, class EntityImp, class DomainFieldImp, size_t domainDim, class RangeFieldImp,
           size_t rangeDim, size_t rangeDimCols = 1>
 class PiolaTransformedDunePdelabWrapper
+{
+  static_assert(AlwaysFalse<PdelabSpaceImp>::value, "You are missing dune-pdelab!");
+};
+
+//new for nedelec
+
+template <class PdelabSpaceImp, class EntityImp, class DomainFieldImp, size_t domainDim, class RangeFieldImp,
+          size_t rangeDim, size_t rangeDimCols = 1>
+class Edges05DunePdelabWrapper
 {
   static_assert(AlwaysFalse<PdelabSpaceImp>::value, "You are missing dune-pdelab!");
 };
