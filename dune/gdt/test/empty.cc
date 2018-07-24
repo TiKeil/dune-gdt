@@ -27,37 +27,28 @@
 
 #include <dune/xt/common/test/main.hxx> // <- this one has to come first (includes the config.h)!
 
-//#include <dune/xt/la/container/common/matrix/dense.hh>
-//#include <dune/xt/la/container/common/vector/dense.hh>
-//#include <dune/xt/la/container/eye-matrix.hh>
+#include <dune/xt/la/container.hh>
+#include <dune/xt/la/matrix-inverter.hh>
+#include <dune/xt/la/solver.hh>
 #include <dune/xt/grid/gridprovider/cube.hh>
 #include <dune/xt/grid/grids.hh>
-
+#include <dune/xt/grid/gridprovider.hh>
+#include <dune/xt/grid/layers.hh>
+#include <dune/xt/grid/dd/glued.hh>
 #include <dune/xt/functions/indicator.hh>
 #include <dune/xt/functions/constant.hh>
 
+#include <dune/gdt/assembler/global.hh>
 #include <dune/gdt/discretefunction/default.hh>
-//#include <dune/gdt/functionals/vector-based.hh>
+#include <dune/gdt/functionals/vector-based.hh>
 #include <dune/gdt/local/bilinear-forms/integrals.hh>
 #include <dune/gdt/functionals/l2.hh>
 #include <dune/gdt/local/integrands/product.hh>
 #include <dune/gdt/local/integrands/elliptic.hh>
-//#include <dune/gdt/local/functionals/integrals.hh>
-//#include <dune/gdt/local/operators/integrals.hh>
+#include <dune/gdt/local/functionals/integrals.hh>
 #include <dune/gdt/operators/matrix-based.hh>
 #include <dune/gdt/operators/weighted-l2.hh>
-//#include <dune/gdt/spaces/l2/discontinuous-galerkin.hh>
-//#include <dune/gdt/spaces/l2/finite-volume.hh>
 #include <dune/gdt/spaces/h1/continuous-lagrange.hh>
-//#include <dune/gdt/spaces/hdiv/raviart-thomas.hh>
-#include <dune/gdt/assembler/global.hh>
-
-#include <dune/xt/grid/gridprovider.hh>
-
-#include <dune/xt/grid/layers.hh>
-
-#include <dune/grid/common/gridfactory.hh>
-#include <dune/xt/grid/dd/glued.hh>
 
 using namespace Dune;
 using namespace Dune::GDT;
@@ -209,32 +200,26 @@ TEST_F(LODTest, standard_problem)
 
   const XT::Functions::ConstantFunction<d> force(1);
 
-  // from cg.hh in test/problems/elliptic
-  const XT::LA::Backends la = XT::LA::default_sparse_backend;
+  const XT::LA::Backends la = XT::LA::Backends::common_dense;
   typedef typename XT::LA::Container<double, la>::MatrixType MatrixType;
   typedef typename XT::LA::Container<double, la>::VectorType VectorType;
 
   auto logger = XT::Common::TimedLogger().get("hi");
-  logger.debug() << "grid has " << space.grid_view().indexSet().size(0) << " elements" << std::endl;
+  logger.info() << "grid has " << space.grid_view().indexSet().size(0) << " elements" << std::endl;
   typedef typename SpaceType::GridViewType GridViewType;
   typedef XT::Grid::extract_intersection_t<GridViewType> IntersectionType;
   //  auto boundary_info = XT::Grid::BoundaryInfoFactory<IntersectionType>::create(problem.boundary_info_cfg());
   logger.info() << "Assembling... " << std::endl;
-  VectorType rhs_vector(space.mapper().size(), 0.0);
-  //  std::cout << rhs_vector << std::endl;
 
   auto op = make_matrix_operator<MatrixType>(micro_leaf_view, space);
-  const LocalEllipticIntegrand<E> elliptic_integrand(coef.as_grid_function<E>(), eye_function.as_grid_function<E>());
-  const LocalElementIntegralBilinearForm<E> local_op(elliptic_integrand);
-  op.append(local_op);
-  //  op.assemble();
+  op.append(LocalElementIntegralBilinearForm<E>(
+      LocalEllipticIntegrand<E>(force.as_grid_function<E>(), eye_function.as_grid_function<E>())));
 
   const LocalElementProductIntegrand<E> product_integrand;
   auto integrand = local_binary_to_unary_element_integrand(force.as_grid_function<E>(), product_integrand);
   const LocalElementIntegralFunctional<E> integral_functional(integrand);
   auto functional = make_vector_functional<VectorType>(space);
   functional.append(integral_functional);
-  //  functional.assemble();
 
   auto assembler = make_global_assembler(space);
   assembler.append(functional);
@@ -242,16 +227,14 @@ TEST_F(LODTest, standard_problem)
   assembler.assemble();
 
   logger.info() << "...Done " << std::endl;
-  //
-  //  assembler.append(functional);
 
-  VectorType local_solution(functional.vector().size());
+  auto& system_matrix = op.matrix();
+  auto& rhs_vector = functional.vector();
 
-  //  std::cout << functional.vector() << std::endl;
-  std::cout << op.matrix() << std::endl;
+  logger.info() << "system matrix = \n" << system_matrix << "\n\n" << std::endl;
+  logger.info() << "rhs vector = \n" << rhs_vector << "\n\n" << std::endl;
+  logger.info() << "inverse = \n" << XT::LA::invert_matrix(system_matrix) << "\n\n" << std::endl;
 
-  XT::LA::Solver<MatrixType>(op.matrix()).apply(functional.vector(), local_solution);
-
-  //  Dune::GDT::DiscreteFunction<XT::LA::CommonDenseVector<double>,GV> discrete_function(space, local_solution);
-  //  discrete_function.visualize("geht?");
+  auto local_solution = XT::LA::solve(system_matrix, rhs_vector);
+  make_const_discrete_function(space, local_solution, "local_solution").visualize("local_solution");
 }
