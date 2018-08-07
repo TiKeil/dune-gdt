@@ -178,7 +178,7 @@ struct LODTest : public ::testing::Test
 TEST_F(LODTest, standard_problem)
 {
   //  auto micro_leaf_view = dd_grid_->global_grid_view(); // <- this is not working
-  auto grid = XT::Grid::make_cube_grid<MacroGridType>(0, 1, 4);
+  auto grid = XT::Grid::make_cube_grid<MacroGridType>(0, 1, 2);
   auto micro_leaf_view = grid.leaf_view();
   using GV = decltype(micro_leaf_view);
   using E = typename GV::template Codim<0>::Entity;
@@ -242,6 +242,10 @@ TEST_F(LODTest, standard_problem)
   auto boundary_info = XT::Grid::BoundaryInfoFactory<IntersectionType>::create();
   logger.info() << "Assembling... " << std::endl;
 
+  // mass matrix
+  auto mass = make_matrix_operator<MatrixType>(micro_leaf_view, space);
+  mass.append(LocalElementIntegralBilinearForm<E>(LocalElementProductIntegrand<E>()));
+
   auto op = make_matrix_operator<MatrixType>(micro_leaf_view, space);
   op.append(LocalElementIntegralBilinearForm<E>(LocalEllipticIntegrand<E>(coef, eye_function.as_grid_function<E>())));
 
@@ -256,6 +260,8 @@ TEST_F(LODTest, standard_problem)
   auto assembler = make_global_assembler(space);
   assembler.append(functional);
   assembler.append(op);
+  assembler.append(mass);
+
   std::set<size_t> dirichlet_dofs;
   assembler.append([&](const auto& element) {
     std::set<size_t> local_DoFs;
@@ -293,7 +299,10 @@ TEST_F(LODTest, standard_problem)
   auto& system_matrix = op.matrix();
   auto& rhs_vector = functional.vector();
 
+  auto& mass_matrix = mass.matrix();
+
   //  std::cout << dirichlet_dofs << std::endl;
+  logger.info() << "mass matrix = \n" << mass_matrix << "\n\n" << std::endl;
   //    logger.info() << "system matrix = \n" << system_matrix << "\n\n" << std::endl;
   //    logger.info() << "rhs vector = \n" << rhs_vector << "\n\n" << std::endl;
   //  // logger.info() << "inverse = \n" << XT::LA::invert_matrix(system_matrix) << "\n\n" << std::endl;
@@ -326,11 +335,12 @@ TEST_F(LODTest, standard_problem)
   for (size_t ii = 0; ii < 4; ++ii)
     test_matrix.set_entry(ii, ii, 1);
 
-  SchurComplementSolve<MatrixType, VectorType, 25, 4>(op.matrix(), test_matrix, rhs_vector);
+  // SchurComplementSolve<MatrixType, VectorType, 25, 4>(op.matrix(), test_matrix, rhs_vector);
 }
 
 TEST_F(LODTest, DISABLED_local_interpolation)
 {
+  //  dd_grid_->setup_oversampling_grids(0, 3);
   auto coarse_space = make_continuous_lagrange_space<1>(dd_grid_->macro_grid_view());
   auto coarse_basis = coarse_space.basis().localize();
   for (auto&& macro_entity : Dune::elements(dd_grid_->macro_grid_view())) {
@@ -351,6 +361,43 @@ TEST_F(LODTest, DISABLED_local_interpolation)
 //  op.append(LocalElementIntegralBilinearForm<E>(LocalElementProductIntegrand<E>(1.)));
 
 //}
+
+TEST_F(LODTest, l2_projection)
+{
+  const XT::LA::Backends la = XT::LA::Backends::istl_sparse;
+  typedef typename XT::LA::Container<double, la>::MatrixType MatrixType;
+
+  dd_grid_->setup_oversampling_grids(1, 0);
+  auto LocalGrid = dd_grid_->local_oversampling_grid(6);
+
+  using GV = decltype(LocalGrid.leaf_view());
+  using E = typename GV::template Codim<0>::Entity;
+
+  LocalGrid.visualize("LocalGrid");
+
+  auto grid = XT::Grid::make_cube_grid<MacroGridType>(0, 1, 4);
+  grid.visualize("GlobalGrid");
+
+  FieldVector<double, 2> lower_left;
+  FieldVector<double, 2> upper_right;
+  lower_left[0] = 0.25;
+  lower_left[1] = 0;
+  upper_right[0] = 1;
+  upper_right[1] = 0.75;
+  std::array<unsigned int, 2> num;
+  num[0] = 3;
+  num[1] = 3;
+  auto wrapped_grid = XT::Grid::make_cube_grid<MacroGridType>(lower_left, upper_right, num);
+  wrapped_grid.visualize("WrappedGrid");
+
+  // hi
+  auto oversampled_fine_space = make_continuous_lagrange_space<1>(LocalGrid.leaf_view());
+  auto wrapped_coarse_space = make_continuous_lagrange_space<1>(wrapped_grid.leaf_view());
+  auto op = make_matrix_operator<MatrixType>(LocalGrid.leaf_view(), oversampled_fine_space, wrapped_coarse_space);
+
+  op.append(LocalElementIntegralBilinearForm<E>(LocalElementProductIntegrand<E>(1.)));
+}
+
 
 // TEST_F(LODTest, SchurComplement)
 //{
