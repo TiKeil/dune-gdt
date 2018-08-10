@@ -4,7 +4,7 @@ status = 1a3bcab04b011a5d6e44f9983cae6ff89fa695e8 bin (heads/master)
 	 8495540a687b3ee1f7f9a6298d6a5faea51ac069 config.opts (8495540)
 	 8f2c5aba441417bf2c42f22272f538c68a89cc4a dune-alugrid (remotes/origin/releases/2.5)
 	 707acf201d5a754c80f87cc4d71aa36bf29a6e3f dune-common (v2.5.1-9-g707acf20)
-	+e8882b9ec03f968a13d75aee230fe3d0391666a4 dune-gdt (heads/LOD)
+	+215d2e61a39cd152b06d79e424ff8bb28dcd7568 dune-gdt (heads/LOD)
 	 390a2c503783bbed778a8ff610f8c5ca09c238d0 dune-geometry (v2.5.1-5-g390a2c5)
 	 d7b20bbc5f6fdcfc312beb0ea5d16d39ea26904e dune-grid (v2.5.1-2-gd7b20bbc5)
 	 9e29a333e8af02382d80b95335a784d5ce1ea2c8 dune-grid-glue (v2.4.0-70-g9e29a33)
@@ -12,14 +12,14 @@ status = 1a3bcab04b011a5d6e44f9983cae6ff89fa695e8 bin (heads/master)
 	 0d757d65e5d57134a7ecf304e35d063f4ccc7116 dune-localfunctions (v2.5.1rc1)
 	 1c43ee1eb2815912ba570917c6f17aa85dc7010c dune-pybindxi (v2.2.1-13-g1c43ee1)
 	 741e4f8e53bdd3e1b6e19d84eb22b6e3dc48526c dune-python (remotes/origin/releases/2.5)
-	 26cc8cb4161a3a51002ab2a81b8c81d2c951ee79 dune-testtools (remotes/origin/p/renemilk/testname_listing_hack_no-skiptest)
+	 26cc8cb4161a3a51002ab2a81b8c81d2c951ee79 dune-testtools (remotes/origin/dune_xt)
 	 c2addd62e6f6302e4f90ed7fbe62c9b633c3bf42 dune-uggrid (v2.5.1rc1)
-	+ee3e20eee6aa9e592d5f17f7e6005092017d875e dune-xt-common (remotes/origin/rene/parabolic-lrbms-2017-216-gee3e20e)
+	+ee3e20eee6aa9e592d5f17f7e6005092017d875e dune-xt-common (heads/tim-dailywork)
 	+5a97bdc8b6bb95919aa7bee9ada044de45bae0c6 dune-xt-functions (heads/new_master_work_tim)
-	+d7f49c797986cab3f6b726a740be85aebf8d6d8a dune-xt-grid (heads/tim_oversampling)
-	+73e2365f43bab49782000dc84d4f20f75753c1de dune-xt-la (heads/master)
+	+2416d670db72449cb87aded8aa356cf46d60c769 dune-xt-grid (heads/tim_oversampling)
+	+fab7ebec48ebafb5cf541ea3ff696955b480a768 dune-xt-la (heads/master)
 	 60cd896bf3f1eb99066563aa1a07113e5a791d47 scripts (heads/master)
-commit = 28b8ffc2eb472adb349104f865eb71089afb32dd
+commit = 0a46f9ff5d8444d1d6ac9e597255c15c50857446
 
 [submodule.bin]
 remote = https://github.com/dune-community/local-bin.git
@@ -44,7 +44,7 @@ commit = 707acf201d5a754c80f87cc4d71aa36bf29a6e3f
 [submodule.dune-gdt]
 remote = https://github.com/dune-community/dune-gdt.git
 status = 2424627f0ad5de7e4aaa5e7f48bc2a02414d95a1 .vcsetup (heads/master)
-commit = e8882b9ec03f968a13d75aee230fe3d0391666a4
+commit = 215d2e61a39cd152b06d79e424ff8bb28dcd7568
 
 [submodule.dune-geometry]
 remote = https://github.com/dune-community/dune-geometry.git
@@ -82,7 +82,7 @@ status =
 commit = 741e4f8e53bdd3e1b6e19d84eb22b6e3dc48526c
 
 [submodule.dune-testtools]
-remote = https://github.com/dune-mirrors/dune-testtools.git
+remote = https://github.com/dune-community/dune-testtools.git
 status = 
 commit = 26cc8cb4161a3a51002ab2a81b8c81d2c951ee79
 
@@ -93,23 +93,23 @@ commit = c2addd62e6f6302e4f90ed7fbe62c9b633c3bf42
 
 [submodule.dune-xt-common]
 remote = https://github.com/dune-community/dune-xt-common.git
-status = 2424627f0ad5de7e4aaa5e7f48bc2a02414d95a1 .vcsetup (heads/master)
+status = -2424627f0ad5de7e4aaa5e7f48bc2a02414d95a1 .vcsetup
 commit = ee3e20eee6aa9e592d5f17f7e6005092017d875e
 
 [submodule.dune-xt-functions]
 remote = https://github.com/dune-community/dune-xt-functions.git
-status = 55b26d14c82caf4a26b99514cf09651285db8d80 .vcsetup (55b26d1)
+status = -55b26d14c82caf4a26b99514cf09651285db8d80 .vcsetup
 commit = 5a97bdc8b6bb95919aa7bee9ada044de45bae0c6
 
 [submodule.dune-xt-grid]
 remote = https://github.com/dune-community/dune-xt-grid.git
-status = 2424627f0ad5de7e4aaa5e7f48bc2a02414d95a1 .vcsetup (heads/master)
-commit = d7f49c797986cab3f6b726a740be85aebf8d6d8a
+status = -2424627f0ad5de7e4aaa5e7f48bc2a02414d95a1 .vcsetup
+commit = 2416d670db72449cb87aded8aa356cf46d60c769
 
 [submodule.dune-xt-la]
 remote = https://github.com/dune-community/dune-xt-la.git
 status = -2424627f0ad5de7e4aaa5e7f48bc2a02414d95a1 .vcsetup
-commit = 73e2365f43bab49782000dc84d4f20f75753c1de
+commit = fab7ebec48ebafb5cf541ea3ff696955b480a768
 
 [submodule.scripts]
 remote = https://github.com/wwu-numerik/scripts.git
