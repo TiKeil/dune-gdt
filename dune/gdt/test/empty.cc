@@ -611,7 +611,7 @@ TEST_F(LODTest, l2_projection)
   //  }
 }
 
-Test_F(LODTest, saddle_rhs)
+TEST_F(LODTest, saddle_rhs)
 {
   /**
    * This is for the rhs of the saddle point problem
@@ -624,6 +624,11 @@ Test_F(LODTest, saddle_rhs)
   const auto macro_grid_view = dd_grid_->macro_grid_view();
   const auto coarse_space = make_continuous_lagrange_space<1>(macro_grid_view);
 
+  using GVT = decltype(macro_grid_view);
+  using SpaceType = ContinuousLagrangeSpace<GridView<GVT>, 1, double>;
+
+  auto coarse_basis = coarse_space.basis().localize();
+
   for (auto&& macro_element : elements(macro_grid_view)) {
     const auto subdomain_id = dd_grid_->subdomain(macro_element);
     const auto local_grid = dd_grid_->local_grid(macro_element);
@@ -634,25 +639,52 @@ Test_F(LODTest, saddle_rhs)
 
     const auto local_fine_space = make_continuous_lagrange_space<1>(local_leaf_view);
 
-    // Functional
-    //    const LocalElementProductIntegrand<E> product_integrand;
-    //    auto integrand = local_binary_to_unary_element_integrand(force.as_grid_function<E>(), product_integrand);
-    //    const LocalElementIntegralFunctional<E> integral_functional(integrand);
-    //    auto functional = make_vector_functional<VectorType>(local_fine_space);
-    //    functional.append(integral_functional);
+    // rhs
+    coarse_basis->bind(macro_element);
+    XT::Functions::LambdaFunction<d> global_shape_function(
+        coarse_basis->order(), [&](const auto& x_in_global_coordinates, const auto& param) {
+          const auto x_in_macro_reference_coordinates = macro_element.geometry().local(x_in_global_coordinates);
+          using DerivativeRangeType = typename SpaceType::GlobalBasisType::LocalizedBasisType::DerivativeRangeType;
+          std::vector<DerivativeRangeType> result;
+          coarse_basis->jacobians(x_in_macro_reference_coordinates, result, param);
+          return coarse_basis->evaluate_set(x_in_macro_reference_coordinates, param)[0];
+        });
 
-    //    auto coarse_space = make_continuous_lagrange_space<1>(dd_grid_->macro_grid_view());
-    //    auto coarse_basis = coarse_space.basis().localize();
-    //    for (auto&& macro_entity : Dune::elements(dd_grid_->macro_grid_view())) {
-    //      coarse_basis->bind(macro_entity);
-    //      auto oversampling_view = dd_grid_->local_grid(macro_entity).leaf_view();
-    //      XT::Functions::LambdaFunction<d> global_shape_function(
-    //          coarse_basis->order(), [&](const auto& x_in_global_coordinates, const auto& param) {
-    //            const auto x_in_macro_reference_coordinates = macro_entity.geometry().local(x_in_global_coordinates);
-    //            return coarse_basis->evaluate_set(x_in_macro_reference_coordinates, param)[0];
-    //          });
-    //      global_shape_function.visualize(oversampling_view, "shape_function_0");
-    //    rhs_func.append(LocalElementIntegralFunctional<E>(?????<E>(1.)));
+    //    global_shape_function.visualize(local_leaf_view, "shape_function_test");
+
+    const XT::Functions::ConstantFunction<d> constant(0.05);
+    const auto constant_grid_function = constant.as_grid_function<E>();
+
+    // this is for the bilinear form
+    XT::Common::FieldMatrix<double, d, d> eye(0.); // can I do this with XT::LA::eye_matrix?
+    for (auto ii = 0; ii < d; ++ii)
+      eye[ii][ii] = 1;
+    const XT::Functions::ConstantFunction<d, d, d> eye_function(eye);
+
+    Dune::FieldVector<double, 1> new_value; // RangeType
+    new_value[0] = 1 - 0.05;
+    std::vector<std::pair<XT::Common::FieldMatrix<double, d, 2>, Dune::FieldVector<double, 1>>> new_init;
+    for (auto xx = 2. / 16.; xx < 1 - 1. / 16.; xx += 4. / 16.) {
+      for (auto yy = 2. / 16.; yy < 1 - 1. / 16.; yy += 4. / 16.) {
+        std::pair<XT::Common::FieldMatrix<double, d, 2>, Dune::FieldVector<double, 1>> part;
+        part.second = new_value;
+        part.first[0][0] = xx;
+        part.first[0][1] = xx + 1. / 16.;
+        part.first[1][0] = yy;
+        part.first[1][1] = yy + 1. / 16.;
+        new_init.emplace_back(part);
+      }
+    }
+
+    const XT::Functions::IndicatorGridFunction<E, 1> funci(new_init);
+    auto coef = constant_grid_function + funci;
+
+    const LocalEllipticIntegrand<E> elliptic_integrand(coef, eye_function.as_grid_function<E>());
+    auto integrand =
+        local_binary_to_unary_element_integrand(global_shape_function.as_grid_function<E>(), elliptic_integrand);
+    const LocalElementIntegralFunctional<E> integral_functional(integrand);
+    auto functional = make_vector_functional<VectorType>(local_fine_space);
+    functional.append(integral_functional);
   }
 }
 
