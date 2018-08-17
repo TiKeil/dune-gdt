@@ -446,7 +446,7 @@ TEST_F(LODTest, l2_projection)
 
   const auto macro_grid_view = dd_grid_->macro_grid_view();
   const auto coarse_space = make_continuous_lagrange_space<1>(macro_grid_view);
-  dd_grid_->setup_oversampling_grids(0, 0);
+  dd_grid_->setup_oversampling_grids(0, 1);
 
   using GV = decltype(macro_grid_view);
   using MacroElementType = typename GV::template Codim<0>::Entity;
@@ -489,10 +489,8 @@ TEST_F(LODTest, l2_projection)
       const auto& other_macro_element = *macro_element_ptr;
       macro_elements_which_cover_subdomain[subdomain_id].insert(other_macro_element.seed());
     }
-    std::cout << macro_elements_which_cover_subdomain[subdomain_id].size() << std::endl;
   }
 
-#if 0
   // validation
   //  for (auto entity = macro_elements_which_cover_subdomain[0].begin();
   //       entity != macro_elements_which_cover_subdomain[0].end();
@@ -500,25 +498,20 @@ TEST_F(LODTest, l2_projection)
   //    std::cout << entity->geometry().center() << std::endl;
   //  }
 
-  // now we want to knwo which dof are in the oversampling subdomain
+  // now we want to knwo which dofs are in the oversampling subdomain
   std::map<size_t, std::set<size_t>> subdomain_to_DoF_ids;
   DynamicVector<size_t> global_indices;
   for (auto&& macro_element : elements(macro_grid_view)) {
     const auto subdomain_id = dd_grid_->subdomain(macro_element);
-    for (auto&& entity : elements(macro_grid_view)) {
-      const auto other_index = macro_grid_view.indexSet().index(entity);
-      if (std::find(macro_elements_which_cover_subdomain[subdomain_id].begin(),
-                    macro_elements_which_cover_subdomain[subdomain_id].end(),
-                    other_index)
-          != macro_elements_which_cover_subdomain[subdomain_id].end()) {
-//        auto entity = macro_grid_view.grid().entity(entity_seed);
-        const auto other_subdomain_id = dd_grid_->subdomain(entity);
-        coarse_space.mapper().global_indices(macro_element, global_indices);
-        for (size_t ii = 0; ii < coarse_space.mapper().local_size(macro_element); ++ii)
-          subdomain_to_DoF_ids[other_subdomain_id].insert(global_indices[ii]);
-      }
+    for (const auto& entity_seed : macro_elements_which_cover_subdomain[subdomain_id]) {
+      auto entity = macro_grid_view.grid().entity(entity_seed);
+      const auto other_subdomain_id = dd_grid_->subdomain(entity);
+      coarse_space.mapper().global_indices(macro_element, global_indices);
+      for (size_t ii = 0; ii < coarse_space.mapper().local_size(macro_element); ++ii)
+        subdomain_to_DoF_ids[other_subdomain_id].insert(global_indices[ii]);
     }
   }
+
   // validation
   //  for (auto dof = subdomain_to_DoF_ids[0].begin(); dof != subdomain_to_DoF_ids[0].end(); ++dof) {
   //    std::cout << *dof << std::endl;
@@ -606,6 +599,12 @@ TEST_F(LODTest, l2_projection)
     //    std::cout << "Mass:\n\n" << M_l << std::endl;
     //    std::cout << "M * P.T * P : " << M_l * matrix_result << std::endl;
     auto C_l = P_l_restricted * M_l;
+
+
+    /**
+     * just some stuff
+     */
+
     auto C_l_transposed = XT::Common::transposed<MatrixType>(C_l);
 
     //    std::cout << "C_l_ " << C_l << std::endl;
@@ -662,84 +661,8 @@ TEST_F(LODTest, l2_projection)
     std::cout << "C_l  * one_vector " << proj_ << std::endl;
     std::cout << "back to fine: " << P_l_transposed * proj_ << std::endl;
 
-    //    // reinterpret    // required : local_coarse_space
-    //    VectorType test_vector_3(oversampled_fine_space.mapper().size(), 0.);
-    //    auto coarse_scale_function = make_const_discrete_function(coarse_space, proj_result, "local_solution");
-    //    auto local_coarse_scale_function = coarse_scale_function.local_function();
-    //    local_coarse_scale_function->bind(macro_element);
-    //    XT::Functions::LambdaFunction<d> fine_scale_function(
-    //        local_coarse_scale_function->order(), [&](const auto& x_in_global_coordinates, const auto& param = {}) {
-    //          const auto x_in_macro_reference_coordinates = macro_element.geometry().local(x_in_global_coordinates);
-    //          return local_coarse_scale_function->evaluate(x_in_macro_reference_coordinates, param);
-    //        });
-    //    for (auto&& micro_element : elements(oversampling_view)) {
-    //      const auto& lps = oversampled_fine_space.finite_element(micro_element.geometry().type()).lagrange_points();
-    //      oversampled_fine_space.mapper().global_indices(micro_element, DoF_ids);
-    //      for (size_t jj = 0; jj < lps.size(); ++jj) {
-    //        const auto& lp_in_local_fine_reference_element_coordinates = lps[jj];
-    //        const auto lp_in_global_coordinates =
-    //            micro_element.geometry().global(lp_in_local_fine_reference_element_coordinates);
-    //        if (ReferenceElements<double, 2>::general(macro_element.geometry().type())
-    //                .checkInside(macro_element.geometry().local(lp_in_global_coordinates))) {
-    //          test_vector_3[DoF_ids[jj]] = fine_scale_function.evaluate(lp_in_global_coordinates);
-    //        }
-    //      }
-    //    }
-    //    std::cout << test_vector_3 << std::endl;
-    //    auto proj_result_2 = C_l * test_vector_3;
-    //    std::cout << "C_l * test_vector_2 " << proj_result_2 << std::endl;
     DUNE_THROW(InvalidStateException, "this is enough");
   }
-
-  //  using GV = decltype(LocalGrid.leaf_view());
-  //  using E = typename GV::template Codim<0>::Entity;
-
-  //  LocalGrid.visualize("LocalGrid");
-
-  //  auto grid = XT::Grid::make_cube_grid<MacroGridType>(0, 1, 4);
-  //  grid.visualize("GlobalGrid");
-
-  //  FieldVector<double, 2> lower_left;
-  //  FieldVector<double, 2> upper_right;
-  //  lower_left[0] = 0.25;
-  //  lower_left[1] = 0;
-  //  upper_right[0] = 1;
-  //  upper_right[1] = 0.75;
-  //  std::array<unsigned int, 2> num;
-  //  num[0] = 3;
-  //  num[1] = 3;
-  //  auto wrapped_grid = XT::Grid::make_cube_grid<MacroGridType>(lower_left, upper_right, num);
-  //  wrapped_grid.visualize("WrappedGrid");
-
-  //  auto oversampled_fine_space = make_continuous_lagrange_space<1>(LocalGrid.leaf_view());
-  //  auto wrapped_coarse_space = make_continuous_lagrange_space<1>(wrapped_grid.leaf_view());
-  //  auto op = make_matrix_operator<MatrixType>(LocalGrid.leaf_view(), oversampled_fine_space,
-  //  wrapped_coarse_space);
-
-  //  auto grid = XT::Grid::make_cube_grid<MacroGridType>(0, 1, 16);
-  //  auto micro_leaf_view = grid.leaf_view();
-  //  using GVT = decltype(micro_leaf_view);
-  //  using ET = typename GVT::template Codim<0>::Entity;
-  //  ContinuousLagrangeSpace<GVT, 1> space(micro_leaf_view);
-  //  auto l2_op = make_matrix_operator<MatrixType>(micro_leaf_view, space);
-  //  l2_op.append(LocalElementIntegralBilinearForm<ET>(LocalElementProductIntegrand<ET>(1.)));
-  //  l2_op.assemble();
-
-  //  const int Nh = 16*16;
-  //  const int NH = 16;
-  //  Dune::XT::LA::SparsityPatternDefault new_dense_pattern(Nh);
-  //  for (size_t ii = 0; ii < Nh; ++ii) {
-  //    for (size_t jj = 0; jj < NH; ++jj)
-  //      new_dense_pattern.inner(ii).push_back(jj);
-  //  }
-
-  //  MatrixType P_h(Nh, NH, new_dense_pattern);
-  //  for (size_t ii = 0; ii < Nh; ++ii) {
-  //    for (size_t jj = 0; jj < NH; ++jj){
-  //      int t = 0;
-  //    }
-  //  }
-#endif
 }
 
 TEST_F(LODTest, DISABLED_saddle_rhs)
